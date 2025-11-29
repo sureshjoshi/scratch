@@ -1,0 +1,64 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The release version to create (e.g. 1.2.3).
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  determine-version:
+    name: Validate sanity check the requested version
+    runs-on: ubuntu-latest
+    outputs:
+      release-version: ${{ steps.determine-version.outputs.release-version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            .
+            scripts
+
+      - name: Determine release version
+        id: determine-version
+        run: bash scripts/verify.sh ${{ github.event.inputs.version }}
+
+  run-ci:
+    needs: determine-version
+    uses: ./.github/workflows/ci.yml
+
+  github-release:
+    name: Create a Github Release with build provenance attestations
+    runs-on: ubuntu-latest
+    needs:
+      - determine-version
+      - run-ci
+    permissions:
+      id-token: write
+      attestations: write
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: ${{ needs.run-ci.outputs.artifact-name }}
+
+      - name: Generate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create \
+            ${{ needs.determine-version.outputs.release-version }} \
+            ${{ needs.run-ci.outputs.artifact-path }} \
+            --fail-on-no-commits \
+            --generate-notes \
+            --repo sureshjoshi/scratch
+      
+      - name: Generate ${{ needs.determine-version.outputs.release-version }} build provenance attestations
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: ${{ needs.run-ci.outputs.artifact-path }}
