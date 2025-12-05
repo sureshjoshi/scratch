@@ -1,0 +1,22 @@
+name: Scheduled CI
+
+on:
+  schedule: # https://crontab.guru/
+    - cron: '42 2 * * *' # Nightly at 2:42am
+    - cron: '1 3 * * 0' # Weekly on Sunday at 3:01am
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  foo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Nightly
+        if: github.event.schedule == '42 2 * * *'
+        run: echo "This step will run nightly"
+      
+      - name: Weekly
+        if: github.event.schedule == '1 3 * * 0'
+        run: echo "This step will run weekly"
